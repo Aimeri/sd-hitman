@@ -1,3 +1,13 @@
+## Changes made
+- Added a value for amount in the server.lua.<br />
+- Celebrity hit requires cash to start, and all hits pay out in black_money.<br />
+- Removed the cd_dispatch police alerts.  Plenty of gunshots because of other changes to alert police!<br />
+- Remove the target fleeing mechanic.<br />
+- Gave the target a heavy pistol instead and made him agressive.<br />
+- Every tier above Low spawns bodyguards, with the number of guards increasing for each tier.<br />
+- Bodyguards use SMGs.<br />
+- Added code to remove the target's body after taking a picture, just for basic cleanup.<br />
+
 ## SD Hitman Jobs
 
 ## Discord : https://discord.gg/GkcsMrDavc
