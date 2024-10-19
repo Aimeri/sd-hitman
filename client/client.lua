@@ -4,11 +4,11 @@ local startTime = nil
 local challengeDuration = 0
 local lastHitAttempt = 0
 local playerData = QBCore.Functions.GetPlayerData()
-local challengeCooldown = 3600000 -- 1 hour in milliseconds
+local challengeCooldown = 7200000
 local cooldowns = {
-    low = 300000, -- 5 minutes
-    medium = 600000, -- 10 minutes
-    high = 900000 -- 15 minutes
+    low = 900000,
+    medium = 1800000,
+    high = 3600000
 }
 local isCelebrityHit = false
 local profile = nil
@@ -34,7 +34,7 @@ local function startHit(profileType, isCelebrity)
     SetBlipScale(blip, 1.0)
     SetBlipColour(blip, 1)
     SetBlipAsShortRange(blip, false)
-    radius = AddBlipForRadius(location.x, location.y, location.z, 30.0)
+    radius = AddBlipForRadius(location.x, location.y, location.z, 40.0)
     SetBlipAlpha(radius, 150)
     SetBlipColour(radius, 1)
 
@@ -46,29 +46,60 @@ local function startHit(profileType, isCelebrity)
     if DoesEntityExist(ped) then
         print("Ped successfully created")
 
-        SetEntityAsMissionEntity(ped, true, true)
-        SetPedFleeAttributes(ped, 0, 0)
-        SetBlockingOfNonTemporaryEvents(ped, true)
-        TaskWanderInArea(ped, location.x, location.y, location.z, 30.0, 2.0, 3.0)
+        GiveWeaponToPed(ped, GetHashKey("WEAPON_HEAVYPISTOL"), 250, false, true)
+        SetPedFiringPattern(ped, GetHashKey("FIRING_PATTERN_FULL_AUTO"))
+        SetPedCombatAttributes(ped, 46, true)
+        SetPedCombatAttributes(ped, 5, true)
+        SetPedCombatAttributes(ped, 0, true)
+        SetPedCombatAbility(ped, 100)
+        SetPedCombatMovement(ped, 3)
+        SetPedConfigFlag(ped, 183, true)
+        SetPedConfigFlag(ped, 4, true)
+        TaskCombatHatedTargetsAroundPed(ped, 100.0, 0)
+        SetPedRelationshipGroupHash(ped, GetHashKey("HATES_PLAYER"))
 
-        QBCore.Functions.Notify('Target is a ' .. pedData.description, 'info', 5000)
+        local bodyguardCount = 0
+        if profileType == "medium" then
+            bodyguardCount = 1
+        elseif profileType == "high" then
+            bodyguardCount = 2
+        elseif isCelebrity then
+            bodyguardCount = 3
+        end
 
-        CreateThread(function()
-            while DoesEntityExist(ped) do
-                local playerCoords = GetEntityCoords(PlayerPedId())
-                local pedCoords = GetEntityCoords(ped)
-                if #(playerCoords - pedCoords) < 10.0 then
-                    TaskSmartFleePed(ped, PlayerPedId(), 100.0, -1, false, false)
-                    QBCore.Functions.Notify('The target is scared and fleeing!', 'warning', 5000)
-                    break
-                end
-                Wait(500)
+        if bodyguardCount > 0 then
+            local bodyguardModel = GetHashKey("s_m_m_highsec_01")
+            RequestModel(bodyguardModel)
+            while not HasModelLoaded(bodyguardModel) do
+                Wait(100)
             end
-        end)
+
+            for i = 1, bodyguardCount do
+                local randomX = math.random(-12, 12)
+                local randomY = math.random(-12, 12)
+                local bodyguardX = location.x + randomX
+                local bodyguardY = location.y + randomY
+
+                local bodyguard = CreatePed(5, bodyguardModel, bodyguardX, bodyguardY, location.z, location.w, true, true)
+                SetPedCombatAttributes(bodyguard, 46, true)
+                SetPedCombatAttributes(bodyguard, 5, true)
+                SetPedCombatAttributes(bodyguard, 0, true)
+                SetPedCombatAbility(bodyguard, 100)
+                SetPedCombatMovement(bodyguard, 3)
+                SetPedConfigFlag(bodyguard, 183, true)
+                SetPedConfigFlag(bodyguard, 4, true)
+                SetPedFiringPattern(bodyguard, GetHashKey("FIRING_PATTERN_FULL_AUTO"))
+                GiveWeaponToPed(bodyguard, GetHashKey("WEAPON_SMG"), 250, false, true)
+                SetPedRelationshipGroupHash(bodyguard, GetHashKey("HATES_PLAYER"))
+                TaskCombatHatedTargetsAroundPed(bodyguard, 100.0, 0)
+            end
+
+            QBCore.Functions.Notify('Target is guarded by ' .. bodyguardCount .. ' bodyguard(s)!', 'info', 5000)
+        end
 
         CreateThread(function()
             while DoesEntityExist(ped) do
-                Wait(500)
+                Wait(1000)
                 if IsPedDeadOrDying(ped, true) then
                     exports['qb-target']:AddTargetEntity(ped, {
                         options = {
@@ -103,46 +134,24 @@ local function startHit(profileType, isCelebrity)
             isCelebrityHit = false
         end
         lastHitAttempt = currentTime
-
-        local data = exports['cd_dispatch']:GetPlayerInfo()
-        local coordsfordispatch = vector3(location.x, location.y, location.z)
-        TriggerServerEvent('cd_dispatch:AddNotification', {
-            job_table = {'police', }, 
-            coords = coordsfordispatch,
-            title = '10-99 - Hitman',
-            message = 'A '..data.sex..' is on the way to murder an innocent person at ' .. data.street, 
-            flash = 0,
-            unique_id = data.unique_id,
-            sound = 1,
-            blip = {
-                sprite = 431, 
-                scale = 1.2, 
-                colour = 3,
-                flashes = true, 
-                text = '911 - Help, there\'s a hitman after me!',
-                time = 5,
-                radius = 0,
-            }
-        })
     else
         print("Failed to create ped")
     end
 end
 
-
 RegisterNetEvent('sd-hitman:client:startCelebrityHit', function()
     if lastHitAttempt ~= 0 then
         local currentTime = GetGameTimer()
         if currentTime - lastHitAttempt < challengeCooldown then
-            QBCore.Functions.Notify('You must wait 1 hour before starting another hit.', 'error', 5000)
+            QBCore.Functions.Notify('You must wait 2 hours before starting another hit.', 'error', 5000)
             return
         end
     end
 
     local playerMoney = QBCore.Functions.GetPlayerData().money['cash']
 
-    if playerMoney < 5000 then
-        QBCore.Functions.Notify('You need $5000 to start a Celebrity Hit.', 'error', 5000)
+    if playerMoney < 500 then
+        QBCore.Functions.Notify('You need $500 to start a Celebrity Hit.', 'error', 5000)
         return
     end
 
@@ -152,7 +161,7 @@ RegisterNetEvent('sd-hitman:client:startCelebrityHit', function()
 
     CreateThread(function()
         lastHitAttempt = GetGameTimer()
-        Wait(3600000)
+        Wait(7200000)
         lastHitAttempt = 0
     end)
 end)
@@ -184,6 +193,19 @@ RegisterNetEvent('sd-hitman:client:takePhotoAction', function()
     ClearPedTasks(playerPed)
     QBCore.Functions.Notify('Photo taken! Return to the original location to get paid.', 'success', 5000)
     hasPhoto = true
+    
+    if DoesEntityExist(ped) then
+        if IsPedDeadOrDying(ped, 1) then
+            DeleteEntity(ped)
+        end
+    end
+
+    if DoesEntityExist(bodyguard) then
+        if IsPedDeadOrDying(bodyguard, 1) then
+            DeleteEntity(bodyguard)
+        end
+    end
+
 end)
 
 
@@ -208,7 +230,7 @@ RegisterNetEvent('sd-hitman:client:openMenu', function()
             icon = "fa-solid fa-star",
             iconColor = '#e8b923',
             title = 'Celebrity Hits',
-            description = 'High profile targets with timed hits, 10 rep points for a succesful hit + a fat paycheck;)',
+            description = 'High profile targets with timed hits, 2 rep points for a succesful hit + a fat paycheck;)',
             event = 'sd-hitman:client:startCelebrityHit'
         }
     }
@@ -245,21 +267,21 @@ RegisterNetEvent('sd-hitman:client:openFindHitMenu', function()
         {
             icon = "fa-solid fa-user-tie",
             title = 'Medium Profile Target',
-            description = 'Requires at least 100 hitman rep',
+            description = 'Requires at least 50 hitman rep',
             event = 'sd-hitman:client:startMediumProfileHit'
         },
         {
             icon = "fa-solid fa-user-crown",
             title = 'High Profile Target',
-            description = 'Requires at least 250 hitman rep',
+            description = 'Requires at least 125 hitman rep',
             event = 'sd-hitman:client:startHighProfileHit'
         }
     }
 
-    if hitmanRep < 100 then
+    if hitmanRep < 50 then
         options[2] = nil
         options[3] = nil
-    elseif hitmanRep < 250 then
+    elseif hitmanRep < 125 then
         options[3] = nil
     end
 
@@ -294,7 +316,7 @@ RegisterNetEvent('sd-hitman:client:payPlayer', function()
             
             if elapsedTime <= challengeDuration then
                 TriggerServerEvent('sd-hitman:server:payPlayer', profile)
-                QBCore.Functions.Notify('Challenge completed within time limit! You have been paid $25,000.', 'success', 5000)
+                QBCore.Functions.Notify('Challenge completed within time limit! You have been paid $5,000.', 'success', 5000)
             else
                 TriggerServerEvent('sd-hitman:server:putOnCooldown')
                 QBCore.Functions.Notify('Challenge failed. You did not complete the hit within the time limit.', 'error', 5000)
@@ -325,7 +347,7 @@ end)
 
 CreateThread(function()
     local startPed = exports['qb-target']:SpawnPed({
-        model = 'ig_lestercrest_2',
+        model = 'a_m_m_hasjew_01',
         coords = Config.Targets.TargetCoords,
         minusOne = true,
         freeze = true,
